@@ -1,0 +1,9 @@
+{
+  "name": "firm-path",
+  "version": "0.0.0",
+  "description": "Typed access to deep object fields via paths built using TypeScript",
+  "main": "index.ts",
+  "author": "FruitRaccoon <fruitraccoon@outlook.com>",
+  "license": "Apache-2.0",
+  "private": false
+}
