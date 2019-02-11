@@ -2,11 +2,19 @@
   "name": "firm-path",
   "version": "0.0.0",
   "description": "Typed access to deep object fields via paths built using TypeScript",
-  "main": "index.ts",
   "author": "FruitRaccoon <fruitraccoon@outlook.com>",
   "license": "Apache-2.0",
   "private": false,
+  "main": "dist/index.js",
+  "module": "dist/index.es.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -cw"
+  },
   "devDependencies": {
+    "rollup": "^1.1.2",
+    "rollup-plugin-typescript2": "^0.19.2",
     "typescript": "^3.3.3"
   }
 }
