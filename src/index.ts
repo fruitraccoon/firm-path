@@ -1,3 +1,1 @@
-export default function() {
-    return true;
-}
+export { getRootPath, IPath, IPathTemplate } from './Path';
