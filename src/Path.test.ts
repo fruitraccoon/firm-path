@@ -241,6 +241,39 @@ describe('Path.getDynamicChildTemplate', () => {
   });
 });
 
+describe('Path.getRelatedPath', () => {
+  it('returns the same path instance for the template that created the path', () => {
+    const template = root
+      .getSubPath(x => x.a.h)
+      .getDynamicChild()
+      .getSubPathTemplate(x => x.i)
+      .getDynamicChild();
+    const inputParts = [2, 4] as [number, number];
+    const path = template.getPath(inputParts);
+    const relatedPath = path.getRelatedPath(template);
+
+    expect(relatedPath).toBe(path);
+  });
+
+  it('gets a path for a higher template', () => {
+    const template1 = root.getSubPath(x => x.a.h).getDynamicChild();
+    const template2 = template1.getSubPathTemplate(x => x.i).getDynamicChild();
+    const inputParts = [2, 4] as [number, number];
+    const path = template2.getPath(inputParts);
+    const relatedPath = path.getRelatedPath(template1);
+
+    expect(relatedPath.toString()).toEqual('a.h[2]');
+  });
+
+  it('throws for a path for a lower template', () => {
+    const template1 = root.getSubPath(x => x.a.h).getDynamicChild();
+    const template2 = template1.getSubPathTemplate(x => x.i).getDynamicChild();
+    const path = template1.getPath([2]);
+
+    expect(() => path.getRelatedPath(template2)).toThrowError();
+  });
+});
+
 describe('PathTemplate.enumerateAllPaths', () => {
   it('returns no paths for an undefined array value', () => {
     const testObject = getTestObject();
@@ -271,6 +304,39 @@ describe('PathTemplate.enumerateAllPaths', () => {
     expect(paths).toHaveLength(2);
     expect(paths[0].toString()).toBe('a.e[0].f');
     expect(paths[1].toString()).toBe('a.e[1].f');
+  });
+});
+
+describe('PathTemplate.getDynamicPartsFromPath', () => {
+  it('returns the same parts that were provided to getPath', () => {
+    const template = root
+      .getSubPath(x => x.a.h)
+      .getDynamicChild()
+      .getSubPathTemplate(x => x.i)
+      .getDynamicChild();
+    const inputParts = [2, 4] as [number, number];
+    const path = template.getPath(inputParts);
+    const outputParts = template.getDynamicPartsFromPath(path);
+
+    expect(outputParts).toEqual(inputParts);
+  });
+
+  it('returns the relevant parts from a subpath', () => {
+    const template1 = root.getSubPath(x => x.a.h).getDynamicChild();
+    const template2 = template1.getSubPathTemplate(x => x.i).getDynamicChild();
+    const inputParts = [2, 4] as [number, number];
+    const path = template2.getPath(inputParts);
+    const outputParts = template1.getDynamicPartsFromPath(path);
+
+    expect(outputParts).toEqual([2]);
+  });
+
+  it('throws for a path that is a parent of the template', () => {
+    const template1 = root.getSubPath(x => x.a.h).getDynamicChild();
+    const template2 = template1.getSubPathTemplate(x => x.i).getDynamicChild();
+    const path = template1.getPath([2]);
+
+    expect(() => template2.getDynamicPartsFromPath(path)).toThrowError();
   });
 });
 

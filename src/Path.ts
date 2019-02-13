@@ -41,13 +41,14 @@ function getPathPartsBuilder<T>(path: IPathTemplateParts = []): PathPartsBuilder
 type PathBuilder<TRoot> = <TValue>(...parts: PropertyKey[]) => IPath<TRoot, TValue>;
 
 type TemplateBuilder<TRoot> = <TDynParts extends PropertyKeyTuple, TValue>(
-  isDynamic: boolean,
+  addDynamicPart: boolean,
   ...parts: PathTemplatePart[]
 ) => IPathTemplate<TRoot, TDynParts, TValue>;
 
 export function getRootPath<TRoot>(): IPath<TRoot, TRoot> {
   const templateBuilder: TemplateBuilder<TRoot> = memoizeAll<TemplateBuilder<TRoot>>(
-    (isDynamic, ...parts) => new PathTemplate(isDynamic, parts, pathBuilder, templateBuilder)
+    (addDynamicPart, ...parts) =>
+      new PathTemplate(addDynamicPart, parts, pathBuilder, templateBuilder)
   );
   const pathBuilder: PathBuilder<TRoot> = memoizeAll<PathBuilder<TRoot>>(
     (...parts) => new Path(parts, pathBuilder, templateBuilder)
@@ -64,6 +65,10 @@ class Path<TRoot, TValue> {
 
   get isRoot() {
     return !this._parts.length;
+  }
+
+  get parts() {
+    return this._parts;
   }
 
   readonly toString = memoizeOne(() => {
@@ -101,6 +106,12 @@ class Path<TRoot, TValue> {
       true,
       ...this._parts
     );
+  };
+
+  readonly getRelatedPath = <TRelValue>(
+    template: IPathTemplate<TRoot, any, TRelValue>
+  ): IPath<TRoot, TRelValue> => {
+    return template.getPath(template.getDynamicPartsFromPath(this));
   };
 }
 
@@ -182,19 +193,19 @@ function isDynamicPathPart(value: PathTemplatePart): value is DynamicPathPart {
 }
 
 class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
+  private readonly _parts: IPathTemplateParts;
+
   constructor(
-    private readonly _isDynamic: boolean,
-    private readonly _parts: IPathTemplateParts,
+    addDynamicPart: boolean,
+    parts: IPathTemplateParts,
     private readonly _pathBuilder: PathBuilder<TRoot>,
     private readonly _templateBuilder: TemplateBuilder<TRoot>
-  ) {}
-
-  private readonly getAllParts = memoizeOne(() => {
-    return this._isDynamic ? this._parts.concat([DYNAMIC_PART]) : this._parts;
-  });
+  ) {
+    this._parts = addDynamicPart ? parts.concat([DYNAMIC_PART]) : parts;
+  }
 
   readonly toString = memoizeOne(() => {
-    return pathPartsToString(this.getAllParts(), []);
+    return pathPartsToString(this._parts, []);
   });
 
   readonly getPath = (dynamicParts: TDynamicParts): IPath<TRoot, TValue> => {
@@ -202,20 +213,40 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
     function getNextDynamicPart() {
       const part = revParts.pop();
       if (part === undefined) {
-        const pathDescription = pathPartsToString(this.getAllParts(), dynamicParts);
+        const pathDescription = pathPartsToString(this._parts, dynamicParts);
         throw new Error(`Dynamic part for template '${pathDescription}' cannot be found`);
       }
       return part;
     }
 
-    const parts = this.getAllParts().map(p => (isDynamicPathPart(p) ? getNextDynamicPart() : p));
+    const parts = this._parts.map(p => (isDynamicPathPart(p) ? getNextDynamicPart() : p));
     return this._pathBuilder(...parts);
+  };
+
+  readonly getDynamicPartsFromPath = (path: IPath<TRoot, any>): TDynamicParts => {
+    if (path.parts.length < this._parts.length) {
+      throw new Error(
+        `Provided Path (${path.toString()}) cannot be a parent path of Template (${this.toString()})`
+      );
+    }
+
+    return this._parts.reduce<PropertyKeyTuple>((acc, p, i) => {
+      if (isDynamicPathPart(p)) {
+        return [...acc, path.parts[i]];
+      }
+      if (p !== path.parts[i]) {
+        throw new Error(
+          `Provided Path (${path.toString()}) does not match Template (${this.toString()})`
+        );
+      }
+      return acc;
+    }, []) as TDynamicParts;
   };
 
   readonly getSubPathTemplate = <TSubValue>(
     builder: (partsBuilder: PathPartsBuilder<TValue>) => PathPartsBuilder<TSubValue>
   ): IPathTemplate<TRoot, TDynamicParts, TSubValue> => {
-    const built = builder(getPathPartsBuilder<TValue>(this.getAllParts()));
+    const built = builder(getPathPartsBuilder<TValue>(this._parts));
     const parts = built[GET_KEY]();
     return this._templateBuilder(false, ...parts);
   };
@@ -224,11 +255,11 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
     return this._templateBuilder<
       AddToTuple<TDynamicParts, ChildKeyType<TValue>>,
       ChildType<TValue>
-    >(true, ...this.getAllParts());
+    >(true, ...this._parts);
   };
 
   readonly enumerateAllPaths = (value: TRoot): Array<Path<TRoot, TValue>> => {
-    return enumerate(value, this.getAllParts()).map(ps => this._pathBuilder(...ps));
+    return enumerate(value, this._parts).map(ps => this._pathBuilder(...ps));
   };
 }
 
