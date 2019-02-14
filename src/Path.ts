@@ -209,11 +209,13 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
   });
 
   readonly getPath = (dynamicParts: TDynamicParts): IPath<TRoot, TValue> => {
+    const templateParts = this._parts;
     const revParts = [...dynamicParts].reverse();
+
     function getNextDynamicPart() {
       const part = revParts.pop();
       if (part === undefined) {
-        const pathDescription = pathPartsToString(this._parts, dynamicParts);
+        const pathDescription = pathPartsToString(templateParts, dynamicParts);
         throw new Error(`Dynamic part for template '${pathDescription}' cannot be found`);
       }
       return part;
@@ -223,7 +225,9 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
     return this._pathBuilder(...parts);
   };
 
-  readonly getDynamicPartsFromPath = (path: IPath<TRoot, any>): TDynamicParts => {
+  readonly getDynamicPartsFromPath = <TOtherValue>(
+    path: IPath<TRoot, TOtherValue>
+  ): TDynamicParts => {
     if (path.parts.length < this._parts.length) {
       throw new Error(
         `Provided Path (${path.toString()}) cannot be a parent path of Template (${this.toString()})`
