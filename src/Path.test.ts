@@ -72,6 +72,27 @@ describe('Path.getValue', () => {
 
     expect(value).toBeNull();
   });
+
+  it('gets a non-existing dynamic path', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x.a.e[99]);
+    const value = path.getValue(testObject);
+
+    expect(value).toBeUndefined();
+  });
+
+  it('gets the edge non-existing dynamic path', () => {
+    const testObject = getTestObject();
+    const template = root.getSubPath(x => x.a.h[0].i).getDynamicChild();
+    const path1 = template.getPath([2]);
+    const path2 = template.getPath([3]);
+
+    const value1 = path1.getValue(testObject);
+    const value2 = path2.getValue(testObject);
+
+    expect(value1).toBe(3);
+    expect(value2).toBeUndefined();
+  });
 });
 
 describe('Path.setValue', () => {
