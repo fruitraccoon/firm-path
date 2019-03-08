@@ -1,6 +1,6 @@
 {
   "name": "firm-path",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed access to deep object fields via paths built using TypeScript",
   "keywords": [
     "path",
