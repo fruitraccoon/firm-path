@@ -1,5 +1,7 @@
 import { getRootPath } from './Path';
 
+const testSymbol = Symbol('Test Symbol');
+
 interface ITestType {
   a:
     | undefined
@@ -17,10 +19,16 @@ interface ITestType {
         }>;
         j: string | null | undefined;
       };
+  [testSymbol]?: {
+    value: number;
+  };
 }
 
 function getTestObject(): ITestType {
-  return { a: { b: { c: 5 }, e: [{ f: 'hi' }, { f: 'bye' }], h: [{ i: [1, 2, 3] }], j: null } };
+  return {
+    a: { b: { c: 5 }, e: [{ f: 'hi' }, { f: 'bye' }], h: [{ i: [1, 2, 3] }], j: null },
+    [testSymbol]: { value: 42 },
+  };
 }
 
 const root = getRootPath<ITestType>();
@@ -93,6 +101,14 @@ describe('Path.getValue', () => {
     expect(value1).toBe(3);
     expect(value2).toBeUndefined();
   });
+
+  it('gets an existing static path containing a symbol', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x[testSymbol].value);
+    const value = path.getValue(testObject);
+
+    expect(value).toBe(42);
+  });
 });
 
 describe('Path.setValue', () => {
@@ -134,6 +150,24 @@ describe('Path.setValue', () => {
       'goodbye'
     );
   });
+
+  it('sets a path to undefined', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x.a.d);
+    path.setValue(testObject, undefined);
+
+    expect(testObject.a && testObject.a.d).toBe(undefined);
+    expect(testObject.a && Object.keys(testObject.a)).toContain('d');
+  });
+
+  it('updates a static path containing a symbol', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x[testSymbol].value);
+    path.setValue(testObject, 43);
+
+    const symbolFieldValue = testObject[testSymbol];
+    expect(symbolFieldValue && symbolFieldValue.value).toBe(43);
+  });
 });
 
 describe('Path.removeValue', () => {
@@ -156,6 +190,7 @@ describe('Path.removeValue', () => {
     path.removeValue(testObject);
 
     expect(testObject.a && testObject.a.b && testObject.a.b.c).toBeUndefined();
+    expect(testObject.a && testObject.a.b && Object.keys(testObject.a.b)).not.toContain('c');
   });
 
   it('removes an existing static array path', () => {
@@ -175,6 +210,27 @@ describe('Path.removeValue', () => {
     expect(
       testObject.a && testObject.a.e && testObject.a.e[1] && testObject.a.e[1].f
     ).toBeUndefined();
+  });
+
+  it('removes a static path containing a symbol', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x[testSymbol].value);
+    path.removeValue(testObject);
+
+    const symbolFieldValue = testObject[testSymbol];
+    expect(symbolFieldValue && symbolFieldValue.value).toBeUndefined();
+    expect(Object.getOwnPropertySymbols(testObject)).toContain(testSymbol);
+    expect(symbolFieldValue && Object.keys(symbolFieldValue)).not.toContain('value');
+  });
+
+  it('removes a static path ending in a symbol', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x[testSymbol]);
+    path.removeValue(testObject);
+
+    const symbolFieldValue = testObject[testSymbol];
+    expect(symbolFieldValue).toBeUndefined();
+    expect(Object.getOwnPropertySymbols(testObject)).not.toContain(testSymbol);
   });
 });
 
