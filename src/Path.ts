@@ -7,17 +7,17 @@ import {
   ChildType,
 } from './typeUtils';
 
-export interface IPathParts extends ReadonlyArray<PropertyKey> {}
+type PathParts = ReadonlyArray<PropertyKey>;
 
 const GET_KEY = Symbol('PATHPARTSBUILDER_GET_KEY');
 
 type PathPartsBuilder<T> = {
   [K in keyof NonFunctionProperties<Required<NonNullable<T>>>]: PathPartsBuilder<NonNullable<T>[K]>
 } & {
-  [GET_KEY]: () => IPathParts;
+  [GET_KEY]: () => PathParts;
 };
 
-function getPathPartsBuilder<T>(path: IPathTemplateParts = []): PathPartsBuilder<T> {
+function getPathPartsBuilder<T>(path: PathTemplateParts = []): PathPartsBuilder<T> {
   return new Proxy(
     {},
     {
@@ -58,7 +58,7 @@ export function getRootPath<TRoot>(): IPath<TRoot, TRoot> {
 
 class Path<TRoot, TValue> {
   constructor(
-    private readonly _parts: IPathParts,
+    private readonly _parts: PathParts,
     private readonly _pathBuilder: PathBuilder<TRoot>,
     private readonly _templateBuilder: TemplateBuilder<TRoot>
   ) {}
@@ -117,7 +117,7 @@ class Path<TRoot, TValue> {
 
 export interface IPath<TRoot, TValue> extends Path<TRoot, TValue> {}
 
-function getValueAtPath<TValue = any>(source: any, path: IPathParts): TValue | undefined {
+function getValueAtPath<TValue = any>(source: any, path: PathParts): TValue | undefined {
   return path.reduce(
     (parent, p) =>
       parent === null ||
@@ -129,7 +129,7 @@ function getValueAtPath<TValue = any>(source: any, path: IPathParts): TValue | u
   );
 }
 
-function setValueAtPath(source: any, path: IPathParts, value: any): void {
+function setValueAtPath(source: any, path: PathParts, value: any): void {
   if (!path || !path.length) {
     return;
   }
@@ -149,7 +149,7 @@ function setValueAtPath(source: any, path: IPathParts, value: any): void {
   lowestObj[lastPath] = value;
 }
 
-function removeValueAtPath(source: any, path: IPathParts): void {
+function removeValueAtPath(source: any, path: PathParts): void {
   if (!path || !path.length) {
     throw new Error('A path to remove at must be provided');
   }
@@ -183,8 +183,7 @@ function removeValueAtPath(source: any, path: IPathParts): void {
 
 type DynamicPathPart = object;
 type PathTemplatePart = PropertyKey | DynamicPathPart;
-
-interface IPathTemplateParts extends ReadonlyArray<PathTemplatePart> {}
+type PathTemplateParts = ReadonlyArray<PathTemplatePart>;
 
 const DYNAMIC_PART: DynamicPathPart = {};
 
@@ -193,11 +192,11 @@ function isDynamicPathPart(value: PathTemplatePart): value is DynamicPathPart {
 }
 
 class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
-  private readonly _parts: IPathTemplateParts;
+  private readonly _parts: PathTemplateParts;
 
   constructor(
     addDynamicPart: boolean,
-    parts: IPathTemplateParts,
+    parts: PathTemplateParts,
     private readonly _pathBuilder: PathBuilder<TRoot>,
     private readonly _templateBuilder: TemplateBuilder<TRoot>
   ) {
@@ -270,7 +269,7 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
 export interface IPathTemplate<TRoot, TDynParts extends Array<PropertyKey>, TValue>
   extends PathTemplate<TRoot, TDynParts, TValue> {}
 
-function pathPartsToString(pathParts: IPathTemplateParts, dynamicParts: PropertyKeyTuple): string {
+function pathPartsToString(pathParts: PathTemplateParts, dynamicParts: PropertyKeyTuple): string {
   const revDynParts = [...dynamicParts].reverse();
   return pathParts
     .map((p, i) => {
@@ -286,7 +285,7 @@ function pathPartsToString(pathParts: IPathTemplateParts, dynamicParts: Property
     .join('');
 }
 
-function enumerate(value: any, path: IPathTemplateParts): IPathParts[] {
+function enumerate(value: any, path: PathTemplateParts): PathParts[] {
   if (!path.length) {
     return [[]];
   }
