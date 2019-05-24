@@ -9,15 +9,15 @@ This package provides a way to create strongly-typed access to object fields. Pa
 
 Path roots also cache/memoize the paths and templates that are created under them, so path instances are singletons that can be compared using `===` or used as keys elsewhere if desired.
 
-# Installation & Usage
+**To try `firm-path` in an interactive example, [you can use this stackblitz](https://stackblitz.com/edit/typescript-6cgvmk) that contains the example below.**
+
+## Installation
 
 NPM: `npm install firm-path --save`
 
 Yarn: `yarn install firm-path`
 
 ## Example Usage
-
-To try `firm-path` in an interactive example, [you can use this stackblitz](https://stackblitz.com/edit/typescript-6cgvmk) that contains the example below.
 
 To use `firm-path`, first import the `getRootPath` function.
 
@@ -40,7 +40,7 @@ Then obtain an instance to the root path for the type. The root path is used as 
 const rootPath = getRootPath<IAddress>();
 ```
 
-Paths are built using an arrow function, so that typescript can provide intellisense for the available fields. Note that any functions are explicitly excluded.
+Paths are built using an arrow function, so that typescript can provide intellisense for the available fields. Note that any functions defined in the type are explicitly excluded.
 
 ```js
 // An example of a simple field path
@@ -93,10 +93,48 @@ postcodePath.setValue(address, 98765);
 secondLinePath.removeValue(address);
 ```
 
-# Features
+The key values for a Path can be retrieved if desired.
+
+```js
+// secondLinePathParts value is ["lines", 1]
+const secondLinePathParts = secondLinePath.parts;
+```
+
+## Features
 
 - Access to the object values is strongly typed by TypeScript.
 - Paths and Templates are immutable.
 - Paths and Template instances are cached within the Root Path instance, and thus can be compared using `===`.
+- Paths and Templates can contain Symbols
 - Templates can contain multiple dynamic parts (eg: arrays of arrays)
 - Updating an object (via `setValue` or `removeValue`) mutates the provided object. If you would prefer not to mutate the original instance, consider wrapping the call using [`immer`](https://github.com/mweststrate/immer).
+
+## Why would I use this?
+
+- Until JavaScript/TypeScript gets [Optional Chaining](https://github.com/tc39/proposal-optional-chaining), deep object getting and setting can be performed without having to do falsey checks at each level.
+
+- Using Paths would usually be useful when wanting to genericise some behaviour. For example, a function could retrieve, check, then update a value in a supplied object, with a Path to define which field to operate on.  For example:
+
+  ```js
+  interface IItem {
+    value: number;
+    subItem: { subValue: number; };
+  }
+
+  function addOne(obj: IItem, path: IPath<IItem, number>) {
+    const value = path.getValue(obj);
+    const newValue = value === undefined ? 0 : value + 1;
+    path.setValue(obj, newValue);
+  }
+
+  const root = getRootPath<IItem>();
+  const valuePath = root.getSubPath(i => i.value);
+  const subValuePath = root.getSubPath(i => i.subItem.subValue);
+
+  const testObj = { value: 1, subItem: { subValue: 10 } };
+
+  addOne(testObj, valuePath);
+  addOne(testObj, subValuePath);
+  ```
+
+
