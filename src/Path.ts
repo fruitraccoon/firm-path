@@ -45,6 +45,9 @@ type TemplateBuilder<TRoot> = <TDynParts extends PropertyKeyTuple, TValue>(
   ...parts: PathTemplatePart[]
 ) => IPathTemplate<TRoot, TDynParts, TValue>;
 
+/**
+ * Creates a new Path instance pointing to the root of the supplied generic type.
+ */
 export function getRootPath<TRoot>(): IPath<TRoot, TRoot> {
   const templateBuilder: TemplateBuilder<TRoot> = memoizeAll<TemplateBuilder<TRoot>>(
     (addDynamicPart, ...parts) =>
@@ -63,22 +66,40 @@ class Path<TRoot, TValue> {
     private readonly _templateBuilder: TemplateBuilder<TRoot>
   ) {}
 
+  /**
+   * Returns if this is the root path.
+   */
   get isRoot() {
     return !this._parts.length;
   }
 
+  /**
+   * Returns the ordered object index keys of the path.
+   */
   get parts() {
     return this._parts;
   }
 
+  /**
+   * Returns a string representation of the path.
+   * Note that any symbols in the path are shown as `Symbol(<symbol name if defined>)`.
+   */
   readonly toString = memoizeOne(() => {
     return pathPartsToString(this._parts, []);
   });
 
+  /**
+   * Gets the value in the supplied object at this path.
+   */
   readonly getValue = (source: TRoot): TValue | undefined => {
     return getValueAtPath<TValue>(source, this._parts);
   };
 
+  /**
+   * Sets the value of the supplied object at this path.
+   * Note: Passing `undefined` as the new value will explicitly set the path's value to `undefined`.
+   *  To remove the path altogether, use the `removeValue` function.
+   */
   readonly setValue = (source: TRoot, value: TValue | undefined) => {
     if (this.isRoot) {
       throw new Error('Cannot set value for the root path');
@@ -86,6 +107,9 @@ class Path<TRoot, TValue> {
     setValueAtPath(source, this._parts, value);
   };
 
+  /**
+   * Removes this path from the supplied object.
+   */
   readonly removeValue = (source: TRoot) => {
     if (this.isRoot) {
       throw new Error('Cannot remove value for the root path');
@@ -93,6 +117,9 @@ class Path<TRoot, TValue> {
     removeValueAtPath(source, this._parts);
   };
 
+  /**
+   * Returns a Path instance for a path below this Path.
+   */
   readonly getSubPath = <TSubValue>(
     builder: (partsBuilder: PathPartsBuilder<TValue>) => PathPartsBuilder<TSubValue>
   ): IPath<TRoot, TSubValue> => {
@@ -101,6 +128,9 @@ class Path<TRoot, TValue> {
     return this._pathBuilder(...parts);
   };
 
+  /**
+   * Returns a Path Template for creating paths one level below this Path.
+   */
   readonly getDynamicChild = () => {
     return this._templateBuilder<AddToTuple<[], ChildKeyType<TValue>>, ChildType<TValue>>(
       true,
@@ -108,6 +138,12 @@ class Path<TRoot, TValue> {
     );
   };
 
+  /**
+   * Supplies the dynamic parts for the specified Path Template from this Path instance,
+   * rather than having to list them explicitly.
+   * This can be useful for creating a parent Path from this Path.
+   * If the supplied Path Template has dynamic parts that are not in the current Path, an exception will be thrown.
+   */
   readonly getRelatedPath = <TRelValue>(
     template: IPathTemplate<TRoot, any, TRelValue>
   ): IPath<TRoot, TRelValue> => {
@@ -203,10 +239,17 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
     this._parts = addDynamicPart ? parts.concat([DYNAMIC_PART]) : parts;
   }
 
+  /**
+   * Returns a string representation of the Path Template.
+   * Note that any symbols in the path template are shown as `Symbol(<symbol name if defined>)`.
+   */
   readonly toString = memoizeOne(() => {
     return pathPartsToString(this._parts, []);
   });
 
+  /**
+   * Returns a Path from this Path Template, using the supplied dynamic parts.
+   */
   readonly getPath = (dynamicParts: TDynamicParts): IPath<TRoot, TValue> => {
     const templateParts = this._parts;
     const revParts = [...dynamicParts].reverse();
@@ -224,6 +267,9 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
     return this._pathBuilder(...parts);
   };
 
+  /**
+   * Extracts the dynamic parts, defined in this Path Template, from the supplied Path.
+   */
   readonly getDynamicPartsFromPath = <TOtherValue>(
     path: IPath<TRoot, TOtherValue>
   ): TDynamicParts => {
@@ -246,6 +292,9 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
     }, []) as TDynamicParts;
   };
 
+  /**
+   * Returns a Path Template instance for a path below this Path Template.
+   */
   readonly getSubPathTemplate = <TSubValue>(
     builder: (partsBuilder: PathPartsBuilder<TValue>) => PathPartsBuilder<TSubValue>
   ): IPathTemplate<TRoot, TDynamicParts, TSubValue> => {
@@ -261,6 +310,9 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
     >(true, ...this._parts);
   };
 
+  /**
+   * Derives all Paths for this Path Template that exist in the supplied value.
+   */
   readonly enumerateAllPaths = (value: TRoot): Array<Path<TRoot, TValue>> => {
     return enumerate(value, this._parts).map(ps => this._pathBuilder(...ps));
   };
