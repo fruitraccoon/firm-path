@@ -18,7 +18,14 @@ interface ITestType {
           i: Array<number>;
         }>;
         j: string | null | undefined;
+        k: number;
       };
+  m: {
+    n: string;
+  };
+  o: Array<string>;
+  p: null | { q: string };
+  r: null | string;
   [testSymbol]?: {
     value: number;
   };
@@ -26,7 +33,11 @@ interface ITestType {
 
 function getTestObject(): ITestType {
   return {
-    a: { b: { c: 5 }, e: [{ f: 'hi' }, { f: 'bye' }], h: [{ i: [1, 2, 3] }], j: null },
+    a: { b: { c: 5 }, e: [{ f: 'hi' }, { f: 'bye' }], h: [{ i: [1, 2, 3] }], j: null, k: 0 },
+    m: { n: 'n' },
+    o: [],
+    p: null,
+    r: null,
     [testSymbol]: { value: 42 },
   };
 }
@@ -102,6 +113,49 @@ describe('Path.getValue', () => {
     expect(value2).toBeUndefined();
   });
 
+  it('gets a path with no undefined types in its path', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x.m.n);
+    const value = path.getValue(testObject); // `value` should be `string` type
+
+    expect(value).toBe('n');
+  });
+
+  it('gets a path with type that cannot be undefined but with a parent type can', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x.a.k);
+    const value = path.getValue(testObject); // `value` should be `number | undefined` type
+
+    expect(value).toBe(0);
+  });
+
+  it('gets a path with type that cannot be undefined but with a dynamic parent path', () => {
+    const testObject = getTestObject();
+    const path = root
+      .getSubPath(x => x.o)
+      .getDynamicChild()
+      .getPath([0]);
+    const value = path.getValue(testObject); // `value` should be `string | undefined` type
+
+    expect(value).toBeUndefined();
+  });
+
+  it('gets a path with type that can be null', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x.r);
+    const value = path.getValue(testObject); // `value` should be `string | null` type
+
+    expect(value).toBeNull();
+  });
+
+  it('gets a path with type that cannot be undefined but with a parent type can be null', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x.p.q);
+    const value = path.getValue(testObject); // `value` should be `string | undefined` type
+
+    expect(value).toBeUndefined();
+  });
+
   it('gets an existing static path containing a symbol', () => {
     const testObject = getTestObject();
     const path = root.getSubPath(x => x[testSymbol].value);
@@ -114,7 +168,9 @@ describe('Path.getValue', () => {
 describe('Path.setValue', () => {
   it('throws when setting the root path', () => {
     const testObject = getTestObject();
-    expect(() => root.setValue(testObject, { a: undefined })).toThrowError();
+    expect(() =>
+      root.setValue(testObject, { a: undefined, m: { n: '' }, o: [], p: null, r: null })
+    ).toThrowError();
   });
 
   it('sets a non-existing static path', () => {
@@ -173,6 +229,7 @@ describe('Path.setValue', () => {
 describe('Path.removeValue', () => {
   it('throws when removing the root path', () => {
     const testObject = getTestObject();
+    const root = getRootPath<ITestType | undefined>();
     expect(() => root.removeValue(testObject)).toThrowError();
   });
 

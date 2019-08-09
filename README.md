@@ -1,6 +1,6 @@
 # firm-path
 
-_Typed access to deep object fields via paths, built using TypeScript_
+_Typed access to deep object fields via paths, built using TypeScript._
 
 [![npm](https://img.shields.io/npm/v/firm-path.svg)](https://www.npmjs.com/package/firm-path)
 [![npm bundle size (minified + gzip)](https://img.shields.io/bundlephobia/minzip/firm-path.svg?style=flat)](https://bundlephobia.com/result?p=firm-path)
@@ -67,7 +67,7 @@ const address = {
   postcode: 12345,
 };
 
-// postcode value is number 123456 (typed as number | undefined)
+// postcode value is number 123456 (typed as `number`)
 const postcode = postcodePath.getValue(address);
 
 // firstLine value is string '101 Somewhere St' (typed as string | undefined)
@@ -136,5 +136,3 @@ const secondLinePathParts = secondLinePath.parts;
   addOne(testObj, valuePath);
   addOne(testObj, subValuePath);
   ```
-
-

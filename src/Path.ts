@@ -5,19 +5,31 @@ import {
   PropertyKeyTuple,
   ChildKeyType,
   ChildType,
+  NullishToUndefinable,
+  DeepPartial,
+  ArrayToUndefinable,
+  ApplyDeepPartial,
+  Undefinable,
+  UndefinableToUndefined,
 } from './typeUtils';
 
 type PathParts = ReadonlyArray<PropertyKey>;
 
 const GET_KEY = Symbol('PATHPARTSBUILDER_GET_KEY');
 
-type PathPartsBuilder<T> = {
-  [K in keyof NonFunctionProperties<Required<NonNullable<T>>>]: PathPartsBuilder<NonNullable<T>[K]>
+// TParentUndefinable tracks the null/undefined of all parent types
+type PathPartsBuilder<T, TParentUndefinable extends Undefinable> = {
+  [K in keyof NonFunctionProperties<Required<NonNullable<T>>>]: PathPartsBuilder<
+    NonNullable<T>[K],
+    TParentUndefinable | ArrayToUndefinable<T> | NullishToUndefinable<T>
+  >
 } & {
   [GET_KEY]: () => PathParts;
 };
 
-function getPathPartsBuilder<T>(path: PathTemplateParts = []): PathPartsBuilder<T> {
+function getPathPartsBuilder<T, TParentUndefinable extends Undefinable>(
+  path: PathTemplateParts = []
+): PathPartsBuilder<T, TParentUndefinable> {
   return new Proxy(
     {},
     {
@@ -33,12 +45,14 @@ function getPathPartsBuilder<T>(path: PathTemplateParts = []): PathPartsBuilder<
         return getPathPartsBuilder([...path, checkedName]);
       },
     }
-  ) as PathPartsBuilder<T>;
+  ) as PathPartsBuilder<T, TParentUndefinable>;
 }
 
 // -------------------------------------------------
 
-type PathBuilder<TRoot> = <TValue>(...parts: PropertyKey[]) => IPath<TRoot, TValue>;
+type PathBuilder<TRoot> = <TValue, TParentUndefinable extends Undefinable>(
+  ...parts: PropertyKey[]
+) => IPath<TRoot, TValue, TParentUndefinable>;
 
 type TemplateBuilder<TRoot> = <TDynParts extends PropertyKeyTuple, TValue>(
   addDynamicPart: boolean,
@@ -48,7 +62,7 @@ type TemplateBuilder<TRoot> = <TDynParts extends PropertyKeyTuple, TValue>(
 /**
  * Creates a new Path instance pointing to the root of the supplied generic type.
  */
-export function getRootPath<TRoot>(): IPath<TRoot, TRoot> {
+export function getRootPath<TRoot>(): IPath<TRoot, TRoot, never> {
   const templateBuilder: TemplateBuilder<TRoot> = memoizeAll<TemplateBuilder<TRoot>>(
     (addDynamicPart, ...parts) =>
       new PathTemplate(addDynamicPart, parts, pathBuilder, templateBuilder)
@@ -59,7 +73,7 @@ export function getRootPath<TRoot>(): IPath<TRoot, TRoot> {
   return pathBuilder();
 }
 
-class Path<TRoot, TValue> {
+class Path<TRoot, TValue, TParentUndefinable extends Undefinable> {
   constructor(
     private readonly _parts: PathParts,
     private readonly _pathBuilder: PathBuilder<TRoot>,
@@ -89,10 +103,29 @@ class Path<TRoot, TValue> {
   });
 
   /**
-   * Gets the value in the supplied object at this path.
+   * If the returned result is an object, the objects fields will be made optional. This is because
+   * the object fields can be set individually when an instance at this path doesn't exist (which will
+   * cause it to be created as an empty object)
    */
-  readonly getValue = (source: TRoot): TValue | undefined => {
-    return getValueAtPath<TValue>(source, this._parts);
+  readonly getValue = (
+    source: TRoot
+  ):
+    | (TParentUndefinable extends Undefinable ? DeepPartial<TValue | undefined> : never)
+    | (ApplyDeepPartial<NullishToUndefinable<TValue> | ArrayToUndefinable<TValue>, TValue>)
+    | TValue => {
+    return this.getValueUnsafe(source) as any;
+  };
+
+  /**
+   * Gets the value in the supplied object at this path.
+   * If the returned result is an object, its type will be unchanged. If an object field has been
+   * set individually (using `setValue`) when an instance at this path didn't exist, the other fields
+   * of the object may be undefined.
+   */
+  readonly getValueUnsafe = (
+    source: TRoot
+  ): TValue | UndefinableToUndefined<TParentUndefinable> => {
+    return getValueAtPath<TValue>(source, this._parts) as any;
   };
 
   /**
@@ -100,7 +133,7 @@ class Path<TRoot, TValue> {
    * Note: Passing `undefined` as the new value will explicitly set the path's value to `undefined`.
    *  To remove the path altogether, use the `removeValue` function.
    */
-  readonly setValue = (source: TRoot, value: TValue | undefined) => {
+  readonly setValue = (source: TRoot, value: TValue) => {
     if (this.isRoot) {
       throw new Error('Cannot set value for the root path');
     }
@@ -110,7 +143,13 @@ class Path<TRoot, TValue> {
   /**
    * Removes this path from the supplied object.
    */
-  readonly removeValue = (source: TRoot) => {
+  readonly removeValue = (
+    source: TValue extends undefined
+      ? TRoot
+      : TParentUndefinable extends Undefinable
+      ? TRoot
+      : never
+  ) => {
     if (this.isRoot) {
       throw new Error('Cannot remove value for the root path');
     }
@@ -120,10 +159,12 @@ class Path<TRoot, TValue> {
   /**
    * Returns a Path instance for a path below this Path.
    */
-  readonly getSubPath = <TSubValue>(
-    builder: (partsBuilder: PathPartsBuilder<TValue>) => PathPartsBuilder<TSubValue>
-  ): IPath<TRoot, TSubValue> => {
-    const built = builder(getPathPartsBuilder<TValue>(this._parts));
+  readonly getSubPath = <TSubValue, TSubParentUndefinable extends Undefinable>(
+    builder: (
+      partsBuilder: PathPartsBuilder<TValue, TParentUndefinable>
+    ) => PathPartsBuilder<TSubValue, TSubParentUndefinable>
+  ): IPath<TRoot, TSubValue, TSubParentUndefinable> => {
+    const built = builder(getPathPartsBuilder<TValue, TParentUndefinable>(this._parts));
     const parts = built[GET_KEY]();
     return this._pathBuilder(...parts);
   };
@@ -146,12 +187,13 @@ class Path<TRoot, TValue> {
    */
   readonly getRelatedPath = <TRelValue>(
     template: IPathTemplate<TRoot, any, TRelValue>
-  ): IPath<TRoot, TRelValue> => {
+  ): IPath<TRoot, TRelValue, TParentUndefinable> => {
     return template.getPath(template.getDynamicPartsFromPath(this));
   };
 }
 
-export interface IPath<TRoot, TValue> extends Path<TRoot, TValue> {}
+export interface IPath<TRoot, TValue, TParentUndefinable extends Undefinable>
+  extends Path<TRoot, TValue, TParentUndefinable> {}
 
 function getValueAtPath<TValue = any>(source: any, path: PathParts): TValue | undefined {
   return path.reduce(
@@ -250,7 +292,9 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
   /**
    * Returns a Path from this Path Template, using the supplied dynamic parts.
    */
-  readonly getPath = (dynamicParts: TDynamicParts): IPath<TRoot, TValue> => {
+  readonly getPath = <TParentUndefinable extends Undefinable>(
+    dynamicParts: TDynamicParts
+  ): IPath<TRoot, TValue, TParentUndefinable> => {
     const templateParts = this._parts;
     const revParts = [...dynamicParts].reverse();
 
@@ -270,8 +314,8 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
   /**
    * Extracts the dynamic parts, defined in this Path Template, from the supplied Path.
    */
-  readonly getDynamicPartsFromPath = <TOtherValue>(
-    path: IPath<TRoot, TOtherValue>
+  readonly getDynamicPartsFromPath = <TOtherValue, TOtherParentUndefinable extends Undefinable>(
+    path: IPath<TRoot, TOtherValue, TOtherParentUndefinable>
   ): TDynamicParts => {
     if (path.parts.length < this._parts.length) {
       throw new Error(
@@ -296,9 +340,11 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
    * Returns a Path Template instance for a path below this Path Template.
    */
   readonly getSubPathTemplate = <TSubValue>(
-    builder: (partsBuilder: PathPartsBuilder<TValue>) => PathPartsBuilder<TSubValue>
+    builder: (
+      partsBuilder: PathPartsBuilder<TValue, Undefinable>
+    ) => PathPartsBuilder<TSubValue, Undefinable>
   ): IPathTemplate<TRoot, TDynamicParts, TSubValue> => {
-    const built = builder(getPathPartsBuilder<TValue>(this._parts));
+    const built = builder(getPathPartsBuilder<TValue, Undefinable>(this._parts));
     const parts = built[GET_KEY]();
     return this._templateBuilder(false, ...parts);
   };
@@ -313,7 +359,9 @@ class PathTemplate<TRoot, TDynamicParts extends PropertyKeyTuple, TValue> {
   /**
    * Derives all Paths for this Path Template that exist in the supplied value.
    */
-  readonly enumerateAllPaths = (value: TRoot): Array<Path<TRoot, TValue>> => {
+  readonly enumerateAllPaths = <TParentUndefinable extends Undefinable>(
+    value: TRoot
+  ): Array<Path<TRoot, TValue, TParentUndefinable>> => {
     return enumerate(value, this._parts).map(ps => this._pathBuilder(...ps));
   };
 }
