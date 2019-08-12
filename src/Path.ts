@@ -206,7 +206,7 @@ class Path<
     return this._templateBuilder<
       AddToTuple<[], ChildKeyType<TValue>>,
       ChildType<TValue>,
-      'writable'
+      TValue extends ReadonlyArray<infer U> ? 'readonly' : 'writable'
     >(true, ...this._parts);
   };
 
@@ -397,7 +397,7 @@ class PathTemplate<
     return this._templateBuilder<
       AddToTuple<TDynamicParts, ChildKeyType<TValue>>,
       ChildType<TValue>,
-      'writable'
+      TValue extends ReadonlyArray<infer U> ? 'readonly' : 'writable'
     >(true, ...this._parts);
   };
 

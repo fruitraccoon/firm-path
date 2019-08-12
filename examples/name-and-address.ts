@@ -14,6 +14,12 @@ interface INameAndAddress {
     postcode: number;
     readonly asString: string;
   }>;
+  readonly priorAddresses: ReadonlyArray<
+    Readonly<{
+      id: number;
+      asString: string;
+    }>
+  >;
 }
 
 const root = getRootPath<INameAndAddress>();
@@ -33,6 +39,9 @@ const addrLineT = addrLinesT.getDynamicChild();
 const townT = addressT.getSubPathTemplate(x => x.town);
 const postcodeT = addressT.getSubPathTemplate(x => x.postcode);
 const addrAsStringT = addressT.getSubPathTemplate(x => x.asString);
+const priorAddressesP = root.getSubPath(x => x.priorAddresses);
+const priorAddressT = priorAddressesP.getDynamicChild();
+const priorAddressAsStringT = priorAddressT.getSubPathTemplate(x => x.asString);
 
 const data: INameAndAddress = {
   givenName: 'joe',
@@ -53,6 +62,7 @@ const data: INameAndAddress = {
       },
     },
   ],
+  priorAddresses: [],
 };
 
 // givenName: string
