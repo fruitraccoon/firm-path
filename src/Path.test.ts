@@ -12,6 +12,7 @@ interface ITestType {
         d?: string;
         e: Array<{
           f: string;
+          readonly ff: number;
         }>;
         g?: Array<string>;
         h: Array<{
@@ -26,6 +27,7 @@ interface ITestType {
   o: Array<string>;
   p: null | { q: string };
   r: null | string;
+  readonly s: string;
   [testSymbol]?: {
     value: number;
   };
@@ -33,11 +35,18 @@ interface ITestType {
 
 function getTestObject(): ITestType {
   return {
-    a: { b: { c: 5 }, e: [{ f: 'hi' }, { f: 'bye' }], h: [{ i: [1, 2, 3] }], j: null, k: 0 },
+    a: {
+      b: { c: 5 },
+      e: [{ f: 'hi', ff: 1 }, { f: 'bye', ff: 2 }],
+      h: [{ i: [1, 2, 3] }],
+      j: null,
+      k: 0,
+    },
     m: { n: 'n' },
     o: [],
     p: null,
     r: null,
+    s: 's',
     [testSymbol]: { value: 42 },
   };
 }
@@ -73,7 +82,7 @@ describe('Path.getValue', () => {
     const path = root.getSubPath(x => x.a.e[0]);
     const value = path.getValue(testObject);
 
-    expect(value).toEqual({ f: 'hi' });
+    expect(value).toEqual({ f: 'hi', ff: 1 });
   });
 
   it('gets an existing static array subPath', () => {
@@ -111,6 +120,14 @@ describe('Path.getValue', () => {
 
     expect(value1).toBe(3);
     expect(value2).toBeUndefined();
+  });
+
+  it('gets a path with type that is readonly', () => {
+    const testObject = getTestObject();
+    const path = root.getSubPath(x => x.s);
+    const value = path.getValue(testObject); // `value` should be `string` type
+
+    expect(value).toBe('s');
   });
 
   it('gets a path with no undefined types in its path', () => {
@@ -166,13 +183,6 @@ describe('Path.getValue', () => {
 });
 
 describe('Path.setValue', () => {
-  it('throws when setting the root path', () => {
-    const testObject = getTestObject();
-    expect(() =>
-      root.setValue(testObject, { a: undefined, m: { n: '' }, o: [], p: null, r: null })
-    ).toThrowError();
-  });
-
   it('sets a non-existing static path', () => {
     const testObject = getTestObject();
     const path = root.getSubPath(x => x.a.d);
@@ -192,9 +202,9 @@ describe('Path.setValue', () => {
   it('updates an existing static array path', () => {
     const testObject = getTestObject();
     const path = root.getSubPath(x => x.a.e[0]);
-    path.setValue(testObject, { f: 'hello' });
+    path.setValue(testObject, { f: 'hello', ff: 3 });
 
-    expect(testObject.a && testObject.a.e && testObject.a.e[0]).toEqual({ f: 'hello' });
+    expect(testObject.a && testObject.a.e && testObject.a.e[0]).toEqual({ f: 'hello', ff: 3 });
   });
 
   it('updates an existing static array subPath', () => {
@@ -256,7 +266,7 @@ describe('Path.removeValue', () => {
     path.removeValue(testObject);
 
     expect(testObject.a && testObject.a.e && testObject.a.e.length).toBe(1);
-    expect(testObject.a && testObject.a.e && testObject.a.e[0]).toEqual({ f: 'bye' });
+    expect(testObject.a && testObject.a.e && testObject.a.e[0]).toEqual({ f: 'bye', ff: 2 });
   });
 
   it('removes an existing static array subPath', () => {
@@ -298,7 +308,7 @@ describe('Path.getDynamicChildTemplate', () => {
     const path = template.getPath([1]);
     const value = path.getValue(testObject);
 
-    expect(value).toEqual({ f: 'bye' });
+    expect(value).toEqual({ f: 'bye', ff: 2 });
   });
 
   it('gets a dynamic array sub-path value', () => {
@@ -309,6 +319,16 @@ describe('Path.getDynamicChildTemplate', () => {
     const value = path.getValue(testObject);
 
     expect(value).toEqual('bye');
+  });
+
+  it('gets a dynamic array sub-path readonly value', () => {
+    const testObject = getTestObject();
+    const template = root.getSubPath(x => x.a.e).getDynamicChild();
+    const subTemplate = template.getSubPathTemplate(x => x.ff);
+    const path = subTemplate.getPath([1]); // Path is to readonly value
+    const value = path.getValue(testObject);
+
+    expect(value).toEqual(2);
   });
 
   it('gets a dynamic object path value', () => {
@@ -371,7 +391,7 @@ describe('Path.getDynamicChildTemplate', () => {
     path.removeValue(testObject);
 
     expect(testObject.a && testObject.a.e && testObject.a.e.length).toBe(1);
-    expect(testObject.a && testObject.a.e && testObject.a.e[0]).toEqual({ f: 'bye' });
+    expect(testObject.a && testObject.a.e && testObject.a.e[0]).toEqual({ f: 'bye', ff: 2 });
   });
 });
 

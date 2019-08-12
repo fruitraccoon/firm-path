@@ -85,3 +85,18 @@ export type AddToTuple<T extends PropertyKeyTuple, TLast> = TLast extends Proper
       ? AddToThreeTuple<T, TLast>
       : AddToMoreTuple<T>)
   : never;
+
+type IfEquals<X, Y, A = X, B = never> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y
+  ? 1
+  : 2)
+  ? A
+  : B;
+
+export type Readonlyness = 'readonly' | 'writable';
+
+export type IsReadonly<T, K extends keyof T> = IfEquals<
+  { [Q in K]: T[K] },
+  { -readonly [Q in K]: T[K] },
+  'writable',
+  'readonly'
+>;
