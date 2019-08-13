@@ -12,7 +12,9 @@ import {
   Undefinable,
   UndefinableToUndefined,
   Readonlyness,
+  IsReadonlyField,
   IsReadonly,
+  ToUndefinable,
 } from './typeUtils';
 
 type PathParts = ReadonlyArray<PropertyKey>;
@@ -28,8 +30,8 @@ type PathPartsBuilder<
 > = {
   [K in keyof NonFunctionProperties<Required<NonNullable<T>>>]: PathPartsBuilder<
     NonNullable<T>[K],
-    IsReadonly<NonNullable<T>, K>,
-    TParentUndefinable | ArrayToUndefinable<T> | NullishToUndefinable<T>
+    IsReadonlyField<NonNullable<T>, K>,
+    ToUndefinable<T, TParentUndefinable>
   >
 } & {
   [GET_KEY]: () => PathParts;
@@ -72,11 +74,12 @@ type PathBuilder<TRoot> = <
 type TemplateBuilder<TRoot> = <
   TDynParts extends PropertyKeyTuple,
   TValue,
-  TReadonlyness extends Readonlyness
+  TReadonlyness extends Readonlyness,
+  TParentUndefinable extends Undefinable
 >(
   addDynamicPart: boolean,
   ...parts: PathTemplatePart[]
-) => IPathTemplate<TRoot, TDynParts, TValue, TReadonlyness>;
+) => IPathTemplate<TRoot, TDynParts, TValue, TReadonlyness, TParentUndefinable>;
 
 /**
  * Creates a new Path instance pointing to the root of the supplied generic type.
@@ -206,7 +209,8 @@ class Path<
     return this._templateBuilder<
       AddToTuple<[], ChildKeyType<TValue>>,
       ChildType<TValue>,
-      TValue extends ReadonlyArray<infer U> ? 'readonly' : 'writable'
+      IsReadonly<TValue>,
+      ToUndefinable<TValue, TParentUndefinable>
     >(true, ...this._parts);
   };
 
@@ -216,9 +220,13 @@ class Path<
    * This can be useful for creating a parent Path from this Path.
    * If the supplied Path Template has dynamic parts that are not in the current Path, an exception will be thrown.
    */
-  readonly getRelatedPath = <TRelValue, TRelReadonlyness extends Readonlyness>(
-    template: IPathTemplate<TRoot, any, TRelValue, TRelReadonlyness>
-  ): IPath<TRoot, TRelValue, TRelReadonlyness, TParentUndefinable> => {
+  readonly getRelatedPath = <
+    TRelValue,
+    TRelReadonlyness extends Readonlyness,
+    TRelParentUndefinable extends Undefinable
+  >(
+    template: IPathTemplate<TRoot, any, TRelValue, TRelReadonlyness, TRelParentUndefinable>
+  ): IPath<TRoot, TRelValue, TRelReadonlyness, TRelParentUndefinable> => {
     return template.getPath(template.getDynamicPartsFromPath(this));
   };
 }
@@ -308,7 +316,8 @@ class PathTemplate<
   TRoot,
   TDynamicParts extends PropertyKeyTuple,
   TValue,
-  TReadonlyness extends Readonlyness
+  TReadonlyness extends Readonlyness,
+  TParentUndefinable extends Undefinable
 > {
   private readonly _parts: PathTemplateParts;
 
@@ -332,7 +341,7 @@ class PathTemplate<
   /**
    * Returns a Path from this Path Template, using the supplied dynamic parts.
    */
-  readonly getPath = <TParentUndefinable extends Undefinable>(
+  readonly getPath = (
     dynamicParts: TDynamicParts
   ): IPath<TRoot, TValue, TReadonlyness, TParentUndefinable> => {
     const templateParts = this._parts;
@@ -383,12 +392,18 @@ class PathTemplate<
   /**
    * Returns a Path Template instance for a path below this Path Template.
    */
-  readonly getSubPathTemplate = <TSubValue, TSubReadonlyness extends Readonlyness>(
+  readonly getSubPathTemplate = <
+    TSubValue,
+    TSubReadonlyness extends Readonlyness,
+    TSubParentUndefinable extends Undefinable
+  >(
     builder: (
-      partsBuilder: PathPartsBuilder<TValue, TReadonlyness, Undefinable>
-    ) => PathPartsBuilder<TSubValue, TSubReadonlyness, Undefinable>
-  ): IPathTemplate<TRoot, TDynamicParts, TSubValue, TSubReadonlyness> => {
-    const built = builder(getPathPartsBuilder<TValue, TReadonlyness, Undefinable>(this._parts));
+      partsBuilder: PathPartsBuilder<TValue, TReadonlyness, TParentUndefinable>
+    ) => PathPartsBuilder<TSubValue, TSubReadonlyness, TSubParentUndefinable>
+  ): IPathTemplate<TRoot, TDynamicParts, TSubValue, TSubReadonlyness, TSubParentUndefinable> => {
+    const built = builder(
+      getPathPartsBuilder<TValue, TReadonlyness, TParentUndefinable>(this._parts)
+    );
     const parts = built[GET_KEY]();
     return this._templateBuilder(false, ...parts);
   };
@@ -397,7 +412,8 @@ class PathTemplate<
     return this._templateBuilder<
       AddToTuple<TDynamicParts, ChildKeyType<TValue>>,
       ChildType<TValue>,
-      TValue extends ReadonlyArray<infer U> ? 'readonly' : 'writable'
+      IsReadonly<TValue>,
+      ToUndefinable<TValue, TParentUndefinable>
     >(true, ...this._parts);
   };
 
@@ -415,8 +431,9 @@ export interface IPathTemplate<
   TRoot,
   TDynParts extends Array<PropertyKey>,
   TValue,
-  TReadonlyness extends Readonlyness
-> extends PathTemplate<TRoot, TDynParts, TValue, TReadonlyness> {}
+  TReadonlyness extends Readonlyness,
+  TParentUndefinable extends Undefinable
+> extends PathTemplate<TRoot, TDynParts, TValue, TReadonlyness, TParentUndefinable> {}
 
 function pathPartsToString(pathParts: PathTemplateParts, dynamicParts: PropertyKeyTuple): string {
   const revDynParts = [...dynamicParts].reverse();

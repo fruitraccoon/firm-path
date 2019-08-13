@@ -8,6 +8,11 @@ export type UndefinableToUndefined<T extends Undefinable> = T extends Undefinabl
   ? undefined
   : never;
 
+ export type ToUndefinable<T, TParentUndefinable extends Undefinable> =
+  | TParentUndefinable
+  | ArrayToUndefinable<T>
+  | NullishToUndefinable<T>;
+
 export type ApplyDeepPartial<T extends Undefinable, TValue> = T extends Undefinable
   ? DeepPartial<TValue>
   : never;
@@ -15,21 +20,21 @@ export type ApplyDeepPartial<T extends Undefinable, TValue> = T extends Undefina
 type NonFunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
 export type NonFunctionProperties<T> = Pick<T, NonFunctionPropertyNames<T>>;
 
-export type DeepPartial<T> = T extends Array<infer S> | ReadonlyArray<infer S>
+export type DeepPartial<T> = T extends ReadonlyArray<infer S>
   ? Array<
       {
-        [P in keyof S]?: S[P] extends Array<infer U> | ReadonlyArray<infer U>
+        [P in keyof S]?: S[P] extends ReadonlyArray<infer U>
           ? Array<DeepPartial<U>>
           : DeepPartial<S[P]>
       }
     >
   : {
-      [P in keyof T]?: T[P] extends Array<infer U> | ReadonlyArray<infer U>
+      [P in keyof T]?: T[P] extends ReadonlyArray<infer U>
         ? Array<DeepPartial<U>>
         : DeepPartial<T[P]>
     };
 
-export type ChildType<T> = T extends Array<infer U> | ReadonlyArray<infer U>
+export type ChildType<T> = T extends ReadonlyArray<infer U>
   ? U
   : T extends Record<any, infer V>
   ? V
@@ -37,7 +42,7 @@ export type ChildType<T> = T extends Array<infer U> | ReadonlyArray<infer U>
   ? never
   : unknown;
 
-export type ChildKeyType<T> = T extends Array<infer U> | ReadonlyArray<infer U>
+export type ChildKeyType<T> = T extends ReadonlyArray<infer U>
   ? number
   : T extends Record<infer K, infer V>
   ? K
@@ -102,9 +107,15 @@ type IfEquals<X, Y, A = X, B = never> = (<T>() => T extends X ? 1 : 2) extends (
   ? A
   : B;
 
+type Writable<T> = { -readonly [K in keyof T]: T[K] };
+
 export type Readonlyness = 'readonly' | 'writable';
 
-export type IsReadonly<T, K extends keyof T> = IfEquals<
+export type IsReadonly<T> = T extends readonly any[] // Currently only arrays/tuples can be directly readonly
+  ? IfEquals<T, Writable<T>, 'writable', 'readonly'>
+  : 'writable';
+
+export type IsReadonlyField<T, K extends keyof T> = IfEquals<
   { [Q in K]: T[K] },
   { -readonly [Q in K]: T[K] },
   'writable',
